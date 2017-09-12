@@ -2,7 +2,7 @@
 #cython: boundscheck=False
 #cython: cdivision=True
 #cython: nonecheck=False
-
+from cpython cimport array
 import cython
 import numpy as np
 import ctypes
@@ -17,6 +17,7 @@ cdef extern from "stdlib.h":
 
 from libc.math cimport fabs
 from cython.parallel import prange
+
 from libc.stdlib cimport malloc,free
 ctypedef double (*f_type)(double) nogil
 ctypedef struct Data:
@@ -30,7 +31,10 @@ ctypedef struct Bounds:
          bint ub
          double xub
          int ifault
-cdef void initial( int ns, int m, const double emax, double x, double hx, double hpx, int lb, double xlb, int ub, double xub, int ifault, int* iwv, double* rwv) nogil:
+         
+
+          
+cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hpx, int lb, double xlb, int ub, double xub, int ifault, int* iwv, double* rwv) nogil:
       """
       This subroutine takes as input the number of starting values m
       and the starting values x(i), hx(i), hpx(i)  i = 1, m
@@ -403,7 +407,7 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
          if (hpx[ilow] > hpx[n]):
              ifault = 5
          ipt[n]=ilow
-         intersection(&x[n], &hx[n], &hpx[n], &x[ilow], &hx[ilow], &hpx[ilow], &z[n], &huz[n], eps, ifault)
+         intersection(x[n], hx[n], hpx[n], x[ilow], hx[ilow], hpx[ilow], z[n], huz[n], eps, ifault)
          if (ifault != 0):
              return
          if (lb):
@@ -424,7 +428,7 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
            ihigh = n
            ipt[i] = n
            ipt[n] = 0
-           intersection(&x[i], &hx[i], &hpx[i], &x[n], &hx[n], &hpx[n], &z[i], &huz[i], eps, ifault)
+           intersection(x[i], hx[i], hpx[i], x[n], hx[n], hpx[n], z[i], huz[i], eps, ifault)
            if (ifault != 0):
               return
            huub = hpx[n]*(xub-x[n])+hx[n]
@@ -438,11 +442,11 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
            ipt[j]=n
            ipt[n]=i
            # insert z(j) between x(j) and x(n)
-           intersection(&x[j], &hx[j], &hpx[j], &x[n], &hx[n], &hpx[n], &z[j], &huz[j], eps, ifault)
+           intersection(x[j], hx[j], hpx[j], x[n], hx[n], hpx[n], z[j], huz[j], eps, ifault)
            if (ifault != 0):
               return
            #insert z(n) between x(n) and x(i)
-           intersection(&x[n], &hx[n], &hpx[n], &x[i], &hx[i], &hpx[i], &z[n], &huz[n], eps, ifault)
+           intersection(x[n], hx[n], hpx[n], x[i], hx[i], hpx[i], z[n], huz[n], eps, ifault)
            if (ifault != 0):
               return
       #update huzmax
