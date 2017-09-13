@@ -8,33 +8,18 @@ import numpy as np
 import ctypes
 cimport numpy as np
 cdef extern from "math.h":
-     cpdef double log(double x) nogil
-     cpdef double exp(double x) nogil
+     cpdef double log(double x)
+     cpdef double exp(double x)
 
 cdef extern from "stdlib.h":
-     cpdef int rand() nogil
+     cpdef int rand()
      cpdef enum: RAND_MAX
 
 from libc.math cimport fabs
-from cython.parallel import prange
 
-from libc.stdlib cimport malloc,free
-ctypedef double (*f_type)(double) nogil
-ctypedef struct Data:
-         double* x
-         double* hx
-         double* hpx
-
-ctypedef struct Bounds:
-         bint lb
-         double xlb
-         bint ub
-         double xub
-         int ifault
-         
-
-          
-cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hpx, int lb, double xlb, int ub, double xub, int ifault, int* iwv, double* rwv) nogil:
+cdef void initial(int ns, int m, double emax, double* x, double* hx, double*
+        hpx, int lb, double xlb, int ub, double xub, int* ifault, double* iwv,
+        double* rwv):
       """
       This subroutine takes as input the number of starting values m
       and the starting values x(i), hx(i), hpx(i)  i = 1, m
@@ -76,13 +61,13 @@ cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hp
       iwv, rwv     : integer and real working vectors
       """
       eps = expon(-emax, emax)
-      ifault = 0
+      ifault[0] = 0
       ilow = 0
       ihigh = 0
       nn = ns+1
       #at least one starting point
       if (m < 1):
-         ifault = 1
+         ifault[0] = 1
 
       huzmax = hx[0]
       if not ub:
@@ -115,7 +100,7 @@ cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hp
       else:
          cu = 0.0
          if (m < 2):
-             ifault = 1
+             ifault[0] = 1
 
       if (cu > 0.0):
           alcu = log(cu)
@@ -143,7 +128,7 @@ cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hp
          iwv[5] = 0
 
       if ( ns < m):
-         ifault = 2
+         ifault[0] = 2
 
       iwv[iipt+1] = 0
       rwv[0] = hulb
@@ -163,23 +148,24 @@ cdef void initial( int ns, int m, double emax, double* x, double* hx, double* hp
       #create lower and upper hulls
       i = 0
       while (i < m):
-            update(iwv[3], iwv[0], iwv[1], &iwv[iipt+1], &rwv[iscum+1], rwv[4],
+            update(<int>iwv[3], <int>iwv[0], <int>iwv[1], &iwv[iipt+1], &rwv[iscum+1], rwv[4],
                     &rwv[ix+1], &rwv[ihx+1], &rwv[ihpx+1], &rwv[iz+1],
                     &rwv[ihuz+1], rwv[6], rwv[2], lb, rwv[7], rwv[0], ub,
                     rwv[8], rwv[1], ifault, rwv[3], rwv[5])
-            i = iwv[3]
-            if (ifault != 0):
+            i = <int>iwv[3]
+            if (ifault[0] != 0):
                return
 
       #test for wrong starting points
-      if ((not lb) and (hpx[iwv[0]] < eps)):
-         ifault = 3
-      if ((not ub) and (hpx[iwv[1]] > -eps)):
-         ifault = 4
+      if ((not lb) and (hpx[<int>iwv[0]] < eps)):
+         ifault[0] = 3
+      if ((not ub) and (hpx[<int>iwv[1]] > -eps)):
+         ifault[0] = 4
       return
 
 
-cdef void sample(double* iwv, double* rwv, f_type h, f_type hprima, double beta, int ifault) nogil:
+cdef void sample(double* iwv, double* rwv, object h, object hprima,
+        double* beta, int* ifault):
       """
       ifault
       0:successful sampling
@@ -188,7 +174,7 @@ cdef void sample(double* iwv, double* rwv, f_type h, f_type hprima, double beta,
       7:numerical instability
       """
       cdef int iipt, iz, ns, nn, ihuz, iscum, ix, ihx, ihpx
-      cdef bint ub, lb
+      cdef int ub, lb
 
       #set pointers
       iipt = 5
@@ -200,25 +186,25 @@ cdef void sample(double* iwv, double* rwv, f_type h, f_type hprima, double beta,
       ix = nn+iscum
       ihx = nn+ix
       ihpx = nn+ihx
-      lb = False
-      ub = False
+      lb = 0
+      ub = 0
       if (iwv[4] == 1):
-         lb = True
+         lb = 1
       if (iwv[5] == 1):
-         ub = True
+         ub = 1
 
       #call sampling subroutine
-      spl1(ns, <int>iwv[3], <int>iwv[0], <int>iwv[1], <int *>&iwv[iipt+1], &rwv[iscum+1], rwv[4],
+      spl1(ns, <int>iwv[3], <int>iwv[0], <int>iwv[1], &iwv[iipt+1], &rwv[iscum+1], rwv[4],
               &rwv[ix+1], &rwv[ihx+1], &rwv[ihpx+1], &rwv[iz+1], &rwv[ihuz+1],
               rwv[6], lb, rwv[7], rwv[0], ub, rwv[8], rwv[1], h, hprima, beta,
               ifault, rwv[2], rwv[3], rwv[5])
       return
 
-cdef void spl1(int ns, int n, int ilow, int ihigh, int* ipt, double* scum,
+cdef void spl1(int ns, int n, int ilow, int ihigh, double* ipt, double* scum,
         double cu, double* x, double* hx, double* hpx, double* z, double* huz,
-        double huzmax, bint lb, double xlb, double hulb, bint ub, double xub,
-        double huub, f_type h, f_type hprima, double beta, int ifault, double
-        emax, double eps, double alcu) nogil:
+        double huzmax, int lb, double xlb, double hulb, int ub, double xub,
+        double huub, object h, object hprima, double* beta, int* ifault, double
+        emax, double eps, double alcu):
      """
      this subroutine performs the adaptive rejection sampling, it calls
      subroutine splhull to sample from the upper hull, if the sampling
@@ -232,35 +218,35 @@ cdef void spl1(int ns, int n, int ilow, int ihigh, int* ipt, double* scum,
      cdef double alhl, alhu
      cdef int max_attempt = 3*ns
      sampld = False
-     ifault=0
+     ifault[0] = 0
      cdef int attempts = 0
      while ((not sampld) and (attempts < max_attempt)):
          u2 = rand()/RAND_MAX
          #test for zero random number
          if (u2 == 0.0):
-            ifault = 6
+            ifault[0] = 6
             return
          splhull(u2, ipt, ilow, lb, xlb, hulb, huzmax, alcu, &x[0], &hx[0], &hpx[0], &z[0], &huz[0], &scum[0], eps, emax, beta, i, j)
          #sample u1 to compute rejection
          u1 = rand()/RAND_MAX
          if (u1 == 0.0):
-            ifault = 6
+            ifault[0] = 6
          alu1 = log(u1)
          # compute alhu: upper hull at point u1
-         alhu = hpx[i]*(beta-x[i])+hx[i]-huzmax
-         if ((beta > x[ilow]) and (beta < x[ihigh])):
+         alhu = hpx[i]*(beta[0]-x[i])+hx[i]-huzmax
+         if ((beta[0] > x[ilow]) and (beta[0] < x[ihigh])):
             # compute alhl: value of the lower hull at point u1
-            if (beta > x[i]):
+            if (beta[0] > x[i]):
                j = i
-               i = ipt[i]
-            alhl = hx[i]+(beta-x[i])*(hx[i]-hx[i])/(x[i]-x[i])-huzmax
+               i = <int>ipt[i]
+            alhl = hx[i]+(beta[0]-x[i])*(hx[i]-hx[i])/(x[i]-x[i])-huzmax
             #squeezing test
             if ((alhl-alhu) > alu1):
                sampld = True
             #if not sampled evaluate the function, do the rejection test and update
          if (not sampld):
             n1 = n+1
-            x[n1]=beta
+            x[n1] = beta[0]
             hx[n1]=h(x[n1])
             hpx[n1] = hprima(x[n1])
             fx = hx[n1]-huzmax
@@ -269,19 +255,18 @@ cdef void spl1(int ns, int n, int ilow, int ihigh, int* ipt, double* scum,
             # update while the number of points defining the hulls is lower than ns
             if (n < ns):
                update(n, ilow, ihigh, &ipt[0], &scum[0], cu, &x[0], &hx[0], &hpx[0], &z[0], &huz[0], huzmax, emax, lb, xlb, hulb, ub, xub, huub, ifault, eps, alcu)
-            if (ifault != 0):
+            if (ifault[0] != 0):
                return
          attempts += 1
      if (attempts >= max_attempt):
-        with gil:
-           raise ValueError("Trap in ARS: Maximum number of attempts reached by routine spl1_\n")
+       raise ValueError("Trap in ARS: Maximum number of attempts reached by routine spl1_\n")
      return
 
-cdef void splhull(double u2, int* ipt, int ilow,
-        bint lb, double xlb, double hulb, double huzmax, double alcu,
+cdef void splhull(double u2, double* ipt, int ilow,
+        int lb, double xlb, double hulb, double huzmax, double alcu,
         double* x, double* hx, double* hpx,
         double* z, double* huz, double* scum, double eps,
-        double emax, double beta, int i, int j) nogil:
+        double emax, double* beta, int i, int j):
       #this subroutine samples beta from the normalised upper hull
       cdef double eh, logdu, logtg, sign
       cdef bint horiz
@@ -291,7 +276,7 @@ cdef void splhull(double u2, int* ipt, int ilow,
       #find from which exponential piece you sample
       while (u2 > scum[i]):
         j = i
-        i = ipt[i]
+        i = <int>ipt[i]
 
       if (i==ilow):
         #sample below z(ilow), depending on the existence of a lower bound
@@ -299,39 +284,39 @@ cdef void splhull(double u2, int* ipt, int ilow,
           eh = hulb-huzmax-alcu
           horiz = (fabs(hpx[ilow]) < eps)
           if (horiz):
-             beta = xlb+u2*expon(-eh, emax)
+             beta[0] = xlb+u2*expon(-eh, emax)
           else:
              sign = fabs(hpx[i])/hpx[i]
              logtg = log(fabs(hpx[i]))
              logdu = log(u2)
              eh = logdu+logtg-eh
              if (eh < emax):
-                beta = xlb+log(1.0+sign*expon(eh, emax))/hpx[i]
+                beta[0] = xlb+log(1.0+sign*expon(eh, emax))/hpx[i]
              else:
-                beta = xlb+eh/hpx[i]
+                beta[0] = xlb+eh/hpx[i]
         else:
           #hpx(i) must be positive, x(ilow) is left of the mode
-          beta = (log(hpx[i]*u2)+alcu-hx[i]+x[i]*hpx[i]+huzmax)/hpx[i]
+          beta[0] = (log(hpx[i]*u2)+alcu-hx[i]+x[i]*hpx[i]+huzmax)/hpx[i]
 
       else:
         #sample above(j)
         eh = huz[j]-huzmax-alcu
         horiz = (fabs(hpx[i]) < eps)
         if (horiz):
-           beta = z[j]+(u2-scum[j])*expon(-eh, emax)
+           beta[0] = z[j]+(u2-scum[j])*expon(-eh, emax)
         else:
             sign = fabs(hpx[i])/hpx[i]
             logtg = log(fabs(hpx[i]))
             logdu = log(u2-scum[j])
             eh = logdu+logtg-eh
             if (eh < emax):
-              beta = z[j]+(log(1.0+sign*expon(eh, emax)))/hpx[j]
+              beta[0] = z[j]+(log(1.0+sign*expon(eh, emax)))/hpx[j]
             else:
-              beta = z[j]+eh/hpx[j]
+              beta[0] = z[j]+eh/hpx[j]
       return
 
 cdef void intersection(double x1, double y1, double yp1, double x2, double y2,
-        double yp2, double z1, double hz1, double eps, int ifault) nogil:
+        double yp2, double z1, double hz1, double eps, int* ifault):
      """
      computes the intersection (z1, hz1) between 2 tangents defined by
      x1, y1, yp1 and x2, y2, yp2
@@ -341,7 +326,7 @@ cdef void intersection(double x1, double y1, double yp1, double x2, double y2,
      y12 = y1+yp1*(x2-x1)
      y21 = y2+yp2*(x1-x2)
      if ((y21 < y1) or (y12 < y2)):
-         ifault = 5
+         ifault[0] = 5
          return
 
      dh = yp2-yp1
@@ -360,13 +345,13 @@ cdef void intersection(double x1, double y1, double yp1, double x2, double y2,
 
      #test for misbehaviour due to numerical imprecision
      if ((z1 < x1) or (z1 > x2)):
-        ifault = 7
+        ifault[0] = 7
      return
 
-cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
-        double* x, double* hx, const double* hpx, double* z, double* huz, double
-        huzmax, double emax, bint lb, double xlb, double hulb, bint ub, double
-        xub, double huub, int ifault, double eps, double alcu) nogil:
+cdef void update(int n, int ilow, int ihigh, double* ipt, double* scum, double
+        cu, double* x, double* hx, const double* hpx, double* z, double* huz,
+        double huzmax, double emax, int lb, double xlb, double hulb, int ub,
+        double xub, double huub, int* ifault, double eps, double alcu):
       """
        this subroutine increments n and updates all the parameters which
        define the lower and the upper hull
@@ -405,10 +390,10 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
          #insert x(n) below x(ilow)
          #test for non-concavity
          if (hpx[ilow] > hpx[n]):
-             ifault = 5
+             ifault[0] = 5
          ipt[n]=ilow
          intersection(x[n], hx[n], hpx[n], x[ilow], hx[ilow], hpx[ilow], z[n], huz[n], eps, ifault)
-         if (ifault != 0):
+         if (ifault[0] != 0):
              return
          if (lb):
             hulb = hpx[n]*(xlb-x[n])+hx[n]
@@ -419,17 +404,17 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
         #find where to insert x(n)
         while ((x[n]>=x[i]) and (ipt[i] != 0)):
           j = i
-          i = ipt[i]
+          i = <int>ipt[i]
         if (x[n] > x[i]):
            # insert above x(ihigh)
            # test for non-concavity
            if (hpx[i] < hpx[n]):
-              ifault = 5
+              ifault[0] = 5
            ihigh = n
            ipt[i] = n
            ipt[n] = 0
            intersection(x[i], hx[i], hpx[i], x[n], hx[n], hpx[n], z[i], huz[i], eps, ifault)
-           if (ifault != 0):
+           if (ifault[0] != 0):
               return
            huub = hpx[n]*(xub-x[n])+hx[n]
            z[n] = 0.0
@@ -438,24 +423,24 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
            # insert x(n) between x(j) and x(i)
            # test for non-concavity
            if ((hpx[j] < hpx[n]) or (hpx[i] > hpx[n])):
-              ifault = 5
+              ifault[0] = 5
            ipt[j]=n
            ipt[n]=i
            # insert z(j) between x(j) and x(n)
            intersection(x[j], hx[j], hpx[j], x[n], hx[n], hpx[n], z[j], huz[j], eps, ifault)
-           if (ifault != 0):
+           if (ifault[0] != 0):
               return
            #insert z(n) between x(n) and x(i)
            intersection(x[n], hx[n], hpx[n], x[i], hx[i], hpx[i], z[n], huz[n], eps, ifault)
-           if (ifault != 0):
+           if (ifault[0] != 0):
               return
       #update huzmax
       j = ilow
-      i = ipt[j]
+      i = <int>ipt[j]
       huzmax = huz[j]
       while ((huz[j] < huz[i]) and (ipt[i] != 0)):
         j = i
-        i = ipt[i]
+        i = <int>ipt[i]
         huzmax = max(huzmax, huz[j])
       if (lb):
           huzmax = max(huzmax, hulb)
@@ -479,12 +464,11 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
         cu = 0
       scum[i]=cu
       j = i
-      i = ipt[i]
+      i = <int>ipt[i]
       cdef int control_count = 0
       while (ipt[i] != 0):
         if (control_count > n):
-           with gil:
-              raise ValueError('Trap in ARS: infinite while in update near ...\n')
+          raise ValueError('Trap in ARS: infinite while in update near ...\n')
         control_count += 1
         dh = huz[j]-huz[i]
         horiz = (fabs(hpx[i]) < eps)
@@ -496,7 +480,7 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
           else:
             cu -= expon(huz[j]-huzmax, emax)/hpx[i]
         j = i
-        i = ipt[i]
+        i = <int>ipt[i]
         scum[j]=cu
       horiz = (fabs(hpx[i]) < eps)
       #if the derivative is very small the tangent is nearly horizontal
@@ -517,16 +501,16 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
       #unnecessary points
       i = ilow
       u = (cu-scum[i])/cu
-      if ((u == 1.0) and (hpx[ipt[i]] > zero)):
-        ilow = ipt[i]
+      if ((u == 1.0) and (hpx[<int>ipt[i]] > zero)):
+        ilow = <int>ipt[i]
         scum[i] = 0.0
       else:
         scum[i] = 1.0-u
       j = i
-      i = ipt[i]
+      i = <int>ipt[i]
       while (ipt[i] != 0):
         j = i
-        i = ipt[i]
+        i = <int>ipt[i]
         u = (cu-scum[j])/cu
         if ((u == 1.0) and (hpx[i] > zero)):
           ilow = i
@@ -540,7 +524,7 @@ cdef void update(int n, int ilow, int ihigh, int* ipt, double* scum, double cu,
       return
 
 
-cdef double expon(double x, double emax) nogil:
+cdef double expon(double x, double emax):
      #performs an exponential without underflow
      cdef double expon
      if (x < -emax):
@@ -548,3 +532,55 @@ cdef double expon(double x, double emax) nogil:
      else:
         expon = exp(x)
      return expon
+ 
+def main(int ns, int m, double emax,
+         np.ndarray[ndim=1, dtype=np.float64_t] x,
+         np.ndarray[ndim=1, dtype=np.float64_t] hx,
+         np.ndarray[ndim=1, dtype=np.float64_t] hpx,
+         int num,
+         func_h,
+         func_hprima,
+         lb = False,
+         ub = False):
+
+    cdef np.ndarray[ndim=1, dtype=np.float64_t] iwv, rwv, sp
+    
+    # initializing arrays
+    rwv = np.zeros(ns*6+15, dtype=np.float64)
+    iwv = np.zeros(ns+7, dtype=np.float64)
+    sp = np.zeros(num, dtype=np.float64)
+    
+    cdef double xlb = np.min(x)
+    cdef double xub = np.max(x)
+
+    cdef int ifault = 999
+    cdef double beta = 999.
+    
+    initial(ns, m, emax,
+            &x[0], # passing array by reference
+            &hx[0], # passing array by reference
+            &hpx[0], # passing array by reference
+            int(lb), # transforming bool in int
+            xlb,
+            int(ub), # transforming bool in int
+            xub, 
+            &ifault, # passing integer variable by reference
+            &iwv[0], # passing array by reference
+            &rwv[0] # passing array by reference
+            )
+
+    cdef int i
+    for i in range(num):
+        beta = 999
+        sample(
+                &iwv[0], # passing array by reference
+                &rwv[0], # passing array by reference
+                func_h, # function
+                func_hprima, # function derivative
+                &beta, # passing double variable by reference
+                &ifault # passing integer variable by reference
+                )
+        sp[i] = beta
+
+    return sp
+
