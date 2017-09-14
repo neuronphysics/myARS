@@ -3,7 +3,7 @@ from ars import main
 
 m = 3
 ns = 100
-emax = 7
+emax = 64
 
 x = np.zeros(10, float)
 hx = np.zeros(10, float)
