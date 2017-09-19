@@ -239,7 +239,7 @@ cdef void spl1(int *ns, int *n, int *ilow, int *ihigh, int* ipt, double* scum,
             if (beta[0] > x[i]):
                j = i
                i = ipt[i]
-            alhl = hx[i]+(beta[0]-x[i])*(hx[i]-hx[i])/(x[i]-x[i])-huzmax[0]
+            alhl = hx[i]+(beta[0]-x[i])*(hx[i]-hx[j])/(x[i]-x[j])-huzmax[0]
             #squeezing test
             if ((alhl-alhu) > alu1):
                sampld = True
@@ -405,7 +405,7 @@ cdef void update(int *n, int *ilow, int *ihigh, int* ipt, double* scum, double
         while ((x[n[0]]>=x[i]) and (ipt[i] != 0)):
           j = i
           i = <int>ipt[i]
-        if (x[n[0]] > x[i]):
+        if (x[n[0]] >= x[i]):
            # insert above x(ihigh)
            # test for non-concavity
            if (hpx[i] < hpx[n[0]]):
