@@ -23,6 +23,6 @@ print hx
 print hpx
 
 num = 20
-sp=py_ars(ns, m, emax, x, hx, hpx, num, normal_ctypes )
+sp=py_ars(ns, m, emax, x, hx, hpx, num, normal_wrapper)
 
 print(sp)

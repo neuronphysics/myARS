@@ -605,27 +605,28 @@ cdef double expon(double x, double emax):
      return expon
 
  
-def normal(double[:] u,
-           double[:] yu,
-           double[:] ypu):          
+cdef void C_normal(double* u,
+                 double* yu,
+                 double* ypu):          
      yu[0] = -u[0]*u[0]*0.5                                                               
-     ypu[0]= -u[0] 
-     return 
+     ypu[0]= -u[0]      
+     return
+ 
 
+def normal_wrapper(double x,double hx, double hpx):
+    cdef _SampleFunc S=_SampleFunc()
+    S.func = &C_normal(&x,&hx,&hpx)
+    return S
 
-def normal_ctypes(u, yu, ypu):
-   u_as_ctypes_array = (ctypes.c_double*1).from_address(ctypes.addressof(u.contents))
-   yu_as_ctypes_array = (ctypes.c_double*1).from_address(ctypes.addressof(yu.contents))
-   ypu_as_ctypes_array = (ctypes.c_double*1).from_address(ctypes.addressof(ypu.contents))
-   normal(u_as_ctypes_array, yu_as_ctypes_array,ypu_as_ctypes_array)
-     
-
+                 
+cdef class _SampleFunc:
+       cdef void (*func)(double *, double *, double *) 
 def py_ars(int ns, int m, double emax,
            np.ndarray[ndim=1, dtype=np.float64_t] x,
            np.ndarray[ndim=1, dtype=np.float64_t] hx,
            np.ndarray[ndim=1, dtype=np.float64_t] hpx,
            int num,
-           f #log of the distribution
+           _SampleFunc f not None #log of the distribution
            ):
 
     cdef np.ndarray[ndim=1, dtype=np.float64_t] rwv, sp
@@ -654,24 +655,22 @@ def py_ars(int ns, int m, double emax,
             <int *>(&iwv[0]), # passing array by reference
             &rwv[0] # passing array by reference
             )
-    FTYPE = ctypes.CFUNCTYPE(None, # return type
-                             ctypes.POINTER(ctypes.c_double),
-                             ctypes.POINTER(ctypes.c_double),
-                             ctypes.POINTER(ctypes.c_double))
-    f = FTYPE(f) # convert Python callable to ctypes function pointer
 
-    # a rather nasty line to convert to a C function pointer
-    cdef func_t f_ptr = (<func_t*><size_t>ctypes.addressof(f))[0]
     cdef int i
+    
     for i from 0 <= i <num:
+        
         sample(
                <int *>(&iwv[0]), # passing array by reference
                &rwv[0], # passing array by reference
-               f_ptr,
+               f.func,
                &beta, # passing double variable by reference
                &ifault, # passing integer variable by reference
-               ) 
+               )
+        
         sp[i] = beta
 
-    return sp     
+    return sp   
+
+
 
