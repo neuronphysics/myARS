@@ -6,9 +6,9 @@ m = 3
 ns = 100
 emax = 64.
 
-x = np.zeros(10, float)
-hx = np.zeros(10, float)
-hpx = np.zeros(10, float)
+x = np.zeros(3, float)
+hx = np.zeros(3, float)
+hpx = np.zeros(3, float)
 
 x[0] = 0.
 x[1] = 1.0
@@ -23,10 +23,10 @@ print x
 print hx
 print hpx
 
-num = 10000
+num = 20
 sp=run(ns, m, emax, x, hx, hpx, num)
 
 print sp
 
-n, bins, patches = plt.hist(x, 50, normed=1, histtype='stepfilled')
+n, bins, patches = plt.hist(sp, 50, normed=1, histtype='stepfilled')
 #plt.show()
