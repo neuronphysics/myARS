@@ -23,10 +23,10 @@ print x
 print hx
 print hpx
 
-num = 20
+num = 2000
 sp=run(ns, m, emax, x, hx, hpx, num)
 
 print sp
 
 n, bins, patches = plt.hist(sp, 50, normed=1, histtype='stepfilled')
-#plt.show()
+plt.show()
