@@ -622,8 +622,8 @@ def py_ars(int ns, int m, double emax,
            np.ndarray[ndim=1, dtype=np.float64_t] hx,
            np.ndarray[ndim=1, dtype=np.float64_t] hpx,
            int num,
-           wrapper f,
-           wrapper fprimax#log of the distribution
+           wrapper f, #log of the distribution
+           wrapper fprimax #log of the derivitive
            ):
         
     cdef np.ndarray[ndim=1, dtype=np.float64_t] rwv, sp
@@ -681,7 +681,7 @@ def run(int ns, int m, double emax,
            np.ndarray[ndim=1, dtype=np.float64_t] hpx,
            int num
            ):
-    wrapS=make_wrapper(normal)
-    wrapD=make_wrapper(normal_prime)
-    return py_ars(ns, m, emax, x, hx, hpx, num, wrapS,wrapD)  
+    wrap_f=make_wrapper(normal)
+    wrap_fprime=make_wrapper(normal_prime)
+    return py_ars(ns, m, emax, x, hx, hpx, num, wrap_f,wrap_fprime)  
 
